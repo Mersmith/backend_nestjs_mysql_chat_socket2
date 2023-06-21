@@ -5,8 +5,15 @@ import { AuthService } from 'src/auth/service/auth.service';
 import { UserI } from 'src/user/model/user.inteface';
 import { UserService } from 'src/user/service/user-service/user.service';
 import { RoomService } from '../service/room-service/room.service';
-import { RoomI } from '../model/room.interface';
+import { RoomI } from '../model/sala-chat/room.interface';
 import { PageI } from '../model/page.interface';
+import { ConnectedUserService } from '../service/connected-user/connected-user.service';
+import { ConnectedUserI } from '../model/connected-user/connected-user.inteface';
+import { JoinedRoomService } from '../service/joined-room/joined-room.service';
+import { MensajeService } from '../service/mensaje/mensaje.service';
+import { IPaginationOptions } from 'nestjs-typeorm-paginate';
+import { MensajeI } from '../model/mensaje/mensaje.interface';
+import { JoinedRoomI } from '../model/joined-room/joined-room.interface';
 
 @WebSocketGateway({
   cors: {
@@ -23,31 +30,34 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private authService: AuthService,
     private userService: UserService,
-    private roomService: RoomService
+    private roomService: RoomService,
+    private conectadoUsarioServicio: ConnectedUserService,
+    private joinedRoomService: JoinedRoomService,
+    private mensajeServicio: MensajeService
   ) { }
 
   async handleConnection(socket: Socket) {
     try {
       const decodedToken = await this.authService.verifyJwt(socket.handshake.headers.authorization);
-      const user: UserI = await this.userService.getOne(decodedToken.user.id);
+      const usuarioConectado: UserI = await this.userService.getOne(decodedToken.user.id);
 
-      if (!user) {
+      if (!usuarioConectado) {
         return this.disconnect(socket)
       } else {
-        socket.data.user = user;
-        // Cuando el usuario se conecta traer las 2 primeras salas de chat. -> También no es necesario.
-        /*const rooms = await this.roomService.getRoomsForUser(user.id, { page: 1, limit: 2 });
-        rooms.meta.currentPage = rooms.meta.currentPage - 1;
-        return this.server.to(socket.id).emit('rooms', rooms);*/
-        return;
+        socket.data.user = usuarioConectado;
+        const rooms = await this.roomService.getRoomsForUser(usuarioConectado.id, { page: 1, limit: 10 });
+
+        await this.conectadoUsarioServicio.crear({ socketId: socket.id, user: usuarioConectado })
+
+        return this.server.to(socket.id).emit('rooms', rooms);
       }
     } catch {
       return this.disconnect(socket)
     }
   }
 
-  handleDisconnect(socket: Socket) {
-    console.log('On Disconnect');
+  async handleDisconnect(socket: Socket) {
+    await this.conectadoUsarioServicio.deleteBySocketId(socket.id);
     socket.disconnect();
   }
 
@@ -57,30 +67,66 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('createRoom')
-  async onCreateRoom(socket: Socket, room: RoomI): Promise<RoomI> {
+  async onCreateRoom(socket: Socket, room: RoomI) {
+    const crearSalaChat: RoomI = await this.roomService.createRoom(room, socket.data.user);
 
-    console.log(socket.data.user);
-    console.log(socket.data.user.id);
-    console.log(room.users);
-    return this.roomService.createRoom(room, socket.data.user);
+    for (const user of crearSalaChat.users) {
+      const conecciones: ConnectedUserI[] = await this.conectadoUsarioServicio.buscarPorUsuario(user);
+      const rooms = await this.roomService.getRoomsForUser(user.id, { page: 1, limit: 10 });
+      for (const coneccionItem of conecciones) {
+        await this.server.to(coneccionItem.socketId).emit('rooms', rooms);
+      }
+    }
   }
 
-  @SubscribeMessage('paginateRooms')
-  async onPaginateRoom(socket: Socket, page: PageI) {   
-    page.limit = page.limit > 100 ? 100 : page.limit;
+  @SubscribeMessage('paginateRooms')//El método onPaginateRoom se suscribe al evento 'paginateRooms' del socket. 
+  async onPaginateRoom(socket: Socket, paginacionOpciones: PageI) {//El primer parámetro es el socket que hace el evento.
+    const rooms = await this.roomService.getRoomsForUser(socket.data.user.id, this.handleIncomingPageRequest(paginacionOpciones));
+    if (rooms.meta.totalPages >= rooms.meta.currentPage) {
+      return this.server.to(socket.id).emit('rooms', rooms);//Hay paginación
+    } else {
+      return;//No hay paginación
+    }
+  }
 
-    page.page = page.page + 1;
-    const rooms = await this.roomService.getRoomsForUser(socket.data.user.id, page);
+  @SubscribeMessage('joinRoom')
+  async onJoinRoom(socket: Socket, room: RoomI) {
+    const messages = await this.mensajeServicio.findMessagesForRoom(room, { limit: 10, page: 1 });
+    messages.meta.currentPage = messages.meta.currentPage - 1;
+    // Save Connection to Room
+    await this.joinedRoomService.create({ socketId: socket.id, user: socket.data.user, room });
+    // Send last messages from Room to User
+    await this.server.to(socket.id).emit('messages', messages);
+  }
 
-    rooms.meta.currentPage = rooms.meta.currentPage - 1;
+  @SubscribeMessage('leaveRoom')
+  async onLeaveRoom(socket: Socket) {
+    // remove connection from JoinedRooms
+    await this.joinedRoomService.deleteBySocketId(socket.id);
+  }
 
-    console.log("socket.data.user.id: ", socket.data.user.id);
-    //console.log("rooms: ", rooms);
+  @SubscribeMessage('addMessage')
+  async onAddMessage(socket: Socket, message: MensajeI) {
+    const createdMessage: MensajeI = await this.mensajeServicio.create({ ...message, user: socket.data.user });
+    const room: RoomI = await this.roomService.getRoom(createdMessage.room.id);
+    const joinedUsers: JoinedRoomI[] = await this.joinedRoomService.findByRoom(room);
+    // TODO: Send new Message to all joined Users of the room (currently online)
+    for (const user of joinedUsers) {
+      await this.server.to(user.socketId).emit('messageAdded', createdMessage);
+    }
+  }
 
-    return this.server.to(socket.id).emit('rooms', rooms);
+  private handleIncomingPageRequest(paginacionOpciones: PageI) {
+    //Del Frontend paginacionOpciones recibe cantidadDeSalasPorPaginacion y paginacionActualDeSalas
+    paginacionOpciones.cantidadDeSalasPorPaginacion = paginacionOpciones.cantidadDeSalasPorPaginacion > 100 ? 100 : paginacionOpciones.cantidadDeSalasPorPaginacion;
+    paginacionOpciones.paginacionActualDeSalas = paginacionOpciones.paginacionActualDeSalas + 1;
 
+    const paginationOptions: IPaginationOptions = {
+      limit: paginacionOpciones.cantidadDeSalasPorPaginacion,
+      page: paginacionOpciones.paginacionActualDeSalas,
+    };
 
-    
+    return paginationOptions;
   }
 
 }

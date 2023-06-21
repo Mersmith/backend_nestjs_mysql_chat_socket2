@@ -66,3 +66,12 @@ git status
 git add .
 git commit -m "Cambiar a Español"
 git push origin 8_Refactor_Spanish
+
+git pull origin master
+
+git checkout -b 9_Refactor_Spanish
+git branch
+git status
+git add .
+git commit -m "Cambiar a Español y crear tablas"
+git push origin 9_Refactor_Spanish
