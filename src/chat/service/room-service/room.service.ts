@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IPaginationOptions, Pagination, paginate } from 'nestjs-typeorm-paginate';
-import { RoomEntity } from 'src/chat/model/room.entity';
-import { RoomI } from 'src/chat/model/room.interface';
+import { RoomEntity } from 'src/chat/model/sala-chat/room.entity';
+import { RoomI } from 'src/chat/model/sala-chat/room.interface';
 import { UserI } from 'src/user/model/user.inteface';
 import { Repository } from 'typeorm';
 
@@ -19,19 +19,24 @@ export class RoomService {
         return this.roomRepository.save(newRoom);
     }
 
-    async getRoomsForUser(userId: number, options: IPaginationOptions): Promise<Pagination<RoomI>> {
-        const limit = typeof options.limit === 'number' ? options.limit : parseInt(options.limit, 10);
+    async getRoom(roomId: number): Promise<RoomEntity> {
+        return this.roomRepository
+          .createQueryBuilder('room')
+          .leftJoinAndSelect('room.users', 'users')
+          .where('room.id = :roomId', { roomId })
+          .getOne();
+      }
+
+    async getRoomsForUser(usuarioId: number, paginacionOpciones: IPaginationOptions): Promise<Pagination<RoomI>> {
+        const cantidadDeSalasPorPaginacion = typeof paginacionOpciones.limit === 'number' ? paginacionOpciones.limit : parseInt(paginacionOpciones.limit, 10);
         const query = this.roomRepository
             .createQueryBuilder('room')
             .leftJoin('room.users', 'users')
-            .where('users.id = :userId', { userId })
+            .where('users.id = :usuarioId', { usuarioId })
             //.leftJoinAndSelect('room.users', 'all_users')
             .orderBy('room.updated_at', 'DESC')
-            .limit(limit);
-
-        //console.log("options: ", options);
-
-        return paginate(query, options)
+            .limit(cantidadDeSalasPorPaginacion);
+        return paginate(query, paginacionOpciones)
     }
 
     async addCreatorToRoom(room: RoomI, creator: UserI): Promise<RoomI> {
