@@ -55,3 +55,14 @@ git commit -m "Async - Await y Search name"
 git push origin 7_Refactor_Promise
 
 rd /s /q .git
+
+git clone https://github.com/Mersmith/backend_nestjs_mysql_chat_socket2.git
+
+npm install
+
+git checkout -b 8_Refactor_Spanish
+git branch
+git status
+git add .
+git commit -m "Cambiar a Español"
+git push origin 8_Refactor_Spanish

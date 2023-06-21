@@ -20,12 +20,16 @@ export class RoomService {
     }
 
     async getRoomsForUser(userId: number, options: IPaginationOptions): Promise<Pagination<RoomI>> {
+        const limit = typeof options.limit === 'number' ? options.limit : parseInt(options.limit, 10);
         const query = this.roomRepository
             .createQueryBuilder('room')
             .leftJoin('room.users', 'users')
             .where('users.id = :userId', { userId })
-            .leftJoinAndSelect('room.users', 'all_users')
-            .orderBy('room.updated_at', 'DESC');
+            //.leftJoinAndSelect('room.users', 'all_users')
+            .orderBy('room.updated_at', 'DESC')
+            .limit(limit);
+
+        //console.log("options: ", options);
 
         return paginate(query, options)
     }

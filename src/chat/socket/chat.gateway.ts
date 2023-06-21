@@ -35,19 +35,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return this.disconnect(socket)
       } else {
         socket.data.user = user;
-        const rooms = await this.roomService.getRoomsForUser(user.id, { page: 1, limit: 10 });
-
+        // Cuando el usuario se conecta traer las 2 primeras salas de chat. -> También no es necesario.
+        /*const rooms = await this.roomService.getRoomsForUser(user.id, { page: 1, limit: 2 });
         rooms.meta.currentPage = rooms.meta.currentPage - 1;
-
-        return this.server.to(socket.id).emit('rooms', rooms);
-        //this.title.push('Value ' + Math.random().toString());
-        //this.server.emit('message', this.title);
+        return this.server.to(socket.id).emit('rooms', rooms);*/
+        return;
       }
     } catch {
       return this.disconnect(socket)
     }
-    //console.log('On Connect');
-    //this.server.emit('message', 'handleConnection');//enviado al frontend
   }
 
   handleDisconnect(socket: Socket) {
@@ -70,14 +66,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('paginateRooms')
-  async onPaginateRoom(socket: Socket, page: PageI) {
+  async onPaginateRoom(socket: Socket, page: PageI) {   
     page.limit = page.limit > 100 ? 100 : page.limit;
 
     page.page = page.page + 1;
     const rooms = await this.roomService.getRoomsForUser(socket.data.user.id, page);
 
     rooms.meta.currentPage = rooms.meta.currentPage - 1;
+
+    console.log("socket.data.user.id: ", socket.data.user.id);
+    //console.log("rooms: ", rooms);
+
     return this.server.to(socket.id).emit('rooms', rooms);
+
+
+    
   }
 
 }
