@@ -27,10 +27,10 @@ export class JoinedRoomService {
 
     async findByRoom(room: RoomI): Promise<JoinedRoomI[]> {
         return this.joinedRoomRepository.find({
-          where: { room: { id: room.id } },
-          relations: ['user', 'room'],
+            where: { room: { id: room.id } },
+            relations: ['user', 'room'],
         });
-      }
+    }
 
     async deleteBySocketId(socketId: string) {
         return this.joinedRoomRepository.delete({ socketId });
@@ -42,5 +42,5 @@ export class JoinedRoomService {
             .delete()
             .execute();
     }
-    
+
 }
