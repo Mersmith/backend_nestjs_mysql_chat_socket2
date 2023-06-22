@@ -112,6 +112,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const joinedUsers: JoinedRoomI[] = await this.joinedRoomService.findByRoom(room);
     // TODO: Send new Message to all joined Users of the room (currently online)
     for (const user of joinedUsers) {
+      console.log("115 - user.socketId", user)
+      console.log("********")
       await this.server.to(user.socketId).emit('messageAdded', createdMessage);
     }
   }
