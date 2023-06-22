@@ -58,6 +58,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleDisconnect(socket: Socket) {
     await this.conectadoUsarioServicio.deleteBySocketId(socket.id);
+    await this.joinedRoomService.deleteBySocketId(socket.id);
     socket.disconnect();
   }
 
@@ -110,7 +111,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const createdMessage: MensajeI = await this.mensajeServicio.create({ ...message, user: socket.data.user });
     const room: RoomI = await this.roomService.getRoom(createdMessage.room.id);
     const joinedUsers: JoinedRoomI[] = await this.joinedRoomService.findByRoom(room);
-    // TODO: Send new Message to all joined Users of the room (currently online)
     for (const user of joinedUsers) {
       await this.server.to(user.socketId).emit('messageAdded', createdMessage);
     }

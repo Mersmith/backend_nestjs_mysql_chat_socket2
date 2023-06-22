@@ -75,3 +75,19 @@ git status
 git add .
 git commit -m "Cambiar a Español y crear tablas"
 git push origin 9_Refactor_Spanish
+
+git checkout -b 10_Enviar_Mensaje
+git branch
+git status
+git add .
+git commit -m "10_Enviar_Mensaje"
+git push origin 10_Enviar_Mensaje
+
+git pull origin 10_Enviar_Mensaje
+
+git checkout -b 11_Enviar_Mensaje
+git branch
+git status
+git add .
+git commit -m "11_Enviar_Mensaje"
+git push origin 11_Enviar_Mensaje
