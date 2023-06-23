@@ -15,9 +15,9 @@ import { IPaginationOptions } from 'nestjs-typeorm-paginate';
 import { MensajeI } from '../model/mensaje/mensaje.interface';
 import { JoinedRoomI } from '../model/joined-room/joined-room.interface';
 
-@WebSocketGateway({
+@WebSocketGateway(82, {
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:4200']
+    origin: ['http://localhost:3000', 'http://localhost:4200', 'http://localhost']
   }
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
